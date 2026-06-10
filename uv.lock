@@ -757,7 +757,7 @@ wheels = [
 
 [[package]]
 name = "langchain-e2b"
-version = "0.0.2"
+version = "0.0.3"
 source = { editable = "." }
 dependencies = [
     { name = "deepagents" },

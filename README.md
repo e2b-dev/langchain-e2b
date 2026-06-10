@@ -11,32 +11,33 @@ pip install langchain-e2b
 ```
 
 ```python
-from langchain_e2b import E2BProvider
+from e2b import Sandbox
+from langchain_e2b import E2BSandbox
 
-provider = E2BProvider()
-sandbox = provider.get_or_create()
+e2b_sandbox = Sandbox.create()
+backend = E2BSandbox(sandbox=e2b_sandbox)
 
 try:
-    result = sandbox.execute("echo hello")
+    result = backend.execute("echo hello")
     print(result.output)
 finally:
-    provider.delete(sandbox_id=sandbox.id)
+    e2b_sandbox.kill()
 ```
 
 ## What is this?
 
-`langchain-e2b` adapts E2B sandboxes to the Deep Agents sandbox protocol. It
-uses the low-level `e2b` SDK so Deep Agents can create or reconnect to
-sandboxes, run shell commands, and move files through the standard Deep Agents
-sandbox interface.
+`langchain-e2b` adapts an existing E2B sandbox to the Deep Agents sandbox
+protocol. It uses the low-level `e2b` SDK so Deep Agents can run shell commands
+and move files through the standard Deep Agents sandbox interface.
 
-Use `E2BProvider` when you want the package to manage sandbox lifecycle. Use
-`E2BSandbox` directly when you already have an E2B SDK sandbox object.
+This package intentionally does not hide E2B sandbox lifecycle management. Use
+the E2B SDK to create, connect to, configure, and kill sandboxes, then pass the
+connected sandbox object to `E2BSandbox`.
 
 ## Contributing
 
 Contributions are welcome. Keep the adapter focused on implementing the Deep
-Agents sandbox protocol over the official E2B SDK.
+Agents sandbox backend protocol over the official E2B SDK.
 
 ## Development
 
