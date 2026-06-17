@@ -11,6 +11,7 @@ from e2b.exceptions import SandboxException
 from langchain_tests.integration_tests import SandboxIntegrationTests
 
 from langchain_e2b import E2BSandbox
+from langchain_e2b.provider import E2BProvider
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -47,6 +48,31 @@ class TestE2BSandboxStandard(SandboxIntegrationTests):
             _kill_sandbox(sandbox)
 
 
+def test_e2b_provider_creates_executes_and_deletes_sandbox() -> None:
+    api_key = os.environ.get("E2B_API_KEY")
+    if not api_key:
+        pytest.skip(
+            "Missing secrets for E2B provider integration test: set E2B_API_KEY"
+        )
+
+    provider = E2BProvider()
+    sandbox_id: str | None = None
+    try:
+        backend = provider.get_or_create(
+            timeout=60 * 60,
+            template=os.environ.get("E2B_TEMPLATE"),
+            command_timeout=30,
+        )
+        sandbox_id = backend.id
+        result = backend.execute("echo provider-ready", timeout=10)
+
+        assert result.exit_code == 0
+        assert "provider-ready" in result.output
+    finally:
+        if sandbox_id is not None:
+            _delete_provider_sandbox(provider, sandbox_id)
+
+
 def _kill_sandbox(sandbox: Sandbox) -> None:
     last_error: BaseException | None = None
     for attempt in range(KILL_ATTEMPTS):
@@ -60,4 +86,20 @@ def _kill_sandbox(sandbox: Sandbox) -> None:
             return
 
     msg = f"Failed to kill E2B sandbox {sandbox.sandbox_id!r}"
+    raise RuntimeError(msg) from last_error
+
+
+def _delete_provider_sandbox(provider: E2BProvider, sandbox_id: str) -> None:
+    last_error: BaseException | None = None
+    for attempt in range(KILL_ATTEMPTS):
+        try:
+            provider.delete(sandbox_id=sandbox_id)
+        except (httpx.HTTPError, SandboxException) as exc:
+            last_error = exc
+            if attempt + 1 < KILL_ATTEMPTS:
+                time.sleep(KILL_RETRY_DELAY_SECONDS)
+        else:
+            return
+
+    msg = f"Failed to delete E2B sandbox {sandbox_id!r}"
     raise RuntimeError(msg) from last_error

@@ -19,12 +19,15 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
-version = "0.0.3"
+version = "0.0.4"
 requires-python = ">=3.11,<4.0"
 dependencies = [
     "deepagents>=0.6.0,<0.7.0",
     "e2b>=2.25.1,<3.0.0",
 ]
+
+[project.entry-points."deepagents_code.sandbox_providers"]
+e2b = "langchain_e2b.provider:E2BProvider"
 
 [tool.hatch.build.targets.wheel]
 packages = ["langchain_e2b"]
@@ -46,6 +49,7 @@ test = [
     "ruff>=0.13.1,<0.16.0",
     "ty>=0.0.1,<1.0.0",
     "langchain-tests>=1.1.6",
+    "deepagents-code>=0.1.19,<0.2.0",
 ]
 
 [tool.uv]

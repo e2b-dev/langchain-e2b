@@ -2,6 +2,11 @@
 
 # Changelog
 
+## 0.0.4
+
+- Added a Deep Agents Code sandbox provider entry point so `dcode --sandbox e2b`
+  works after installing `langchain-e2b` into the `dcode` environment.
+
 ## 0.0.3
 
 - Removed the `E2BProvider` lifecycle helper. Use the E2B SDK to create,
