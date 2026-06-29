@@ -3,7 +3,7 @@ from __future__ import annotations
 from importlib.metadata import entry_points
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import e2b
 import pytest
@@ -11,7 +11,7 @@ from deepagents_code.integrations.sandbox_config import SandboxConfig
 from deepagents_code.integrations.sandbox_provider import SandboxNotFoundError
 from deepagents_code.integrations.sandbox_registry import SandboxRegistry
 
-from langchain_e2b import E2BSandbox
+from langchain_e2b import AsyncE2BSandbox, E2BSandbox
 from langchain_e2b.provider import (
     DEFAULT_COMMAND_TIMEOUT,
     DEFAULT_SANDBOX_TIMEOUT,
@@ -36,6 +36,18 @@ def _sandbox(sandbox_id: str = "sbx-test") -> e2b.Sandbox:
         exit_code=0,
     )
     return cast("e2b.Sandbox", sandbox)
+
+
+def _async_sandbox(sandbox_id: str = "sbx-test") -> e2b.AsyncSandbox:
+    sandbox = MagicMock(sandbox_id=sandbox_id)
+    sandbox.commands.run = AsyncMock(
+        return_value=SimpleNamespace(
+            stdout="",
+            stderr="",
+            exit_code=0,
+        )
+    )
+    return cast("e2b.AsyncSandbox", sandbox)
 
 
 def test_provider_metadata_does_not_require_credentials(
@@ -129,7 +141,34 @@ def test_provider_creates_sandbox_with_default_options() -> None:
 
     backend.execute("true")
 
-    sandbox.commands.run.assert_called_once_with(
+    cast("MagicMock", sandbox.commands.run).assert_called_once_with(
+        "true",
+        cwd="/home/user",
+        timeout=DEFAULT_COMMAND_TIMEOUT,
+    )
+
+
+async def test_provider_creates_async_sandbox_with_default_options() -> None:
+    sandbox = _async_sandbox("sbx-async-new")
+
+    with patch(
+        "langchain_e2b.provider.e2b.AsyncSandbox.create",
+        new_callable=AsyncMock,
+    ) as create:
+        create.return_value = sandbox
+        provider = E2BProvider(resolve_env_var=_resolver({"E2B_API_KEY": "fake-key"}))
+        backend = await provider.aget_or_create()
+
+    create.assert_awaited_once_with(
+        timeout=DEFAULT_SANDBOX_TIMEOUT,
+        api_key="fake-key",
+    )
+    assert isinstance(backend, AsyncE2BSandbox)
+    assert backend.id == "sbx-async-new"
+
+    await backend.aexecute("true")
+
+    cast("AsyncMock", sandbox.commands.run).assert_awaited_once_with(
         "true",
         cwd="/home/user",
         timeout=DEFAULT_COMMAND_TIMEOUT,
@@ -160,7 +199,39 @@ def test_provider_creates_sandbox_with_curated_options() -> None:
 
     backend.execute("true")
 
-    sandbox.commands.run.assert_called_once_with(
+    cast("MagicMock", sandbox.commands.run).assert_called_once_with(
+        "true",
+        cwd="/workspace",
+        timeout=TEST_COMMAND_TIMEOUT,
+    )
+
+
+async def test_provider_creates_async_sandbox_with_curated_options() -> None:
+    sandbox = _async_sandbox("sbx-async-template")
+
+    with patch(
+        "langchain_e2b.provider.e2b.AsyncSandbox.create",
+        new_callable=AsyncMock,
+    ) as create:
+        create.return_value = sandbox
+        provider = E2BProvider(resolve_env_var=_resolver({"E2B_API_KEY": "fake-key"}))
+        backend = await provider.aget_or_create(
+            timeout=7200,
+            template="custom-template",
+            workdir="/workspace",
+            command_timeout=TEST_COMMAND_TIMEOUT,
+        )
+
+    create.assert_awaited_once_with(
+        template="custom-template",
+        timeout=7200,
+        api_key="fake-key",
+    )
+    assert backend.id == "sbx-async-template"
+
+    await backend.aexecute("true")
+
+    cast("AsyncMock", sandbox.commands.run).assert_awaited_once_with(
         "true",
         cwd="/workspace",
         timeout=TEST_COMMAND_TIMEOUT,
@@ -233,12 +304,45 @@ def test_provider_connects_existing_sandbox() -> None:
     assert backend.id == "sbx-existing"
 
 
+async def test_provider_connects_existing_async_sandbox() -> None:
+    sandbox = _async_sandbox("sbx-async-existing")
+
+    with patch(
+        "langchain_e2b.provider.e2b.AsyncSandbox.connect",
+        new_callable=AsyncMock,
+    ) as connect:
+        connect.return_value = sandbox
+        provider = E2BProvider(resolve_env_var=_resolver({"E2B_API_KEY": "fake-key"}))
+        backend = await provider.aget_or_create(
+            sandbox_id="sbx-async-existing",
+            timeout=2,
+        )
+
+    connect.assert_awaited_once_with(
+        "sbx-async-existing",
+        timeout=2,
+        api_key="fake-key",
+    )
+    assert backend.id == "sbx-async-existing"
+
+
 def test_provider_deletes_sandbox() -> None:
     with patch("langchain_e2b.provider.e2b.Sandbox.kill") as kill:
         provider = E2BProvider(resolve_env_var=_resolver({"E2B_API_KEY": "fake-key"}))
         provider.delete(sandbox_id="sbx-delete")
 
     kill.assert_called_once_with("sbx-delete", api_key="fake-key")
+
+
+async def test_provider_deletes_async_sandbox() -> None:
+    with patch(
+        "langchain_e2b.provider.e2b.AsyncSandbox.kill",
+        new_callable=AsyncMock,
+    ) as kill:
+        provider = E2BProvider(resolve_env_var=_resolver({"E2B_API_KEY": "fake-key"}))
+        await provider.adelete(sandbox_id="sbx-async-delete")
+
+    kill.assert_awaited_once_with("sbx-async-delete", api_key="fake-key")
 
 
 def test_provider_maps_missing_sandbox_to_sandbox_not_found() -> None:
@@ -254,6 +358,20 @@ def test_provider_maps_missing_sandbox_to_sandbox_not_found() -> None:
     assert exc_info.value.args == ("sbx-missing",)
 
 
+async def test_provider_maps_missing_async_sandbox_to_sandbox_not_found() -> None:
+    with patch(
+        "langchain_e2b.provider.e2b.AsyncSandbox.connect",
+        new_callable=AsyncMock,
+    ) as connect:
+        connect.side_effect = e2b.SandboxNotFoundException("missing")
+        provider = E2BProvider(resolve_env_var=_resolver({"E2B_API_KEY": "fake-key"}))
+
+        with pytest.raises(SandboxNotFoundError) as exc_info:
+            await provider.aget_or_create(sandbox_id="sbx-async-missing")
+
+    assert exc_info.value.args == ("sbx-async-missing",)
+
+
 def test_provider_maps_missing_delete_to_sandbox_not_found() -> None:
     with patch(
         "langchain_e2b.provider.e2b.Sandbox.kill",
@@ -265,6 +383,20 @@ def test_provider_maps_missing_delete_to_sandbox_not_found() -> None:
             provider.delete(sandbox_id="sbx-missing")
 
     assert exc_info.value.args == ("sbx-missing",)
+
+
+async def test_provider_maps_missing_async_delete_to_sandbox_not_found() -> None:
+    with patch(
+        "langchain_e2b.provider.e2b.AsyncSandbox.kill",
+        new_callable=AsyncMock,
+    ) as kill:
+        kill.side_effect = e2b.SandboxNotFoundException("missing")
+        provider = E2BProvider(resolve_env_var=_resolver({"E2B_API_KEY": "fake-key"}))
+
+        with pytest.raises(SandboxNotFoundError) as exc_info:
+            await provider.adelete(sandbox_id="sbx-async-missing")
+
+    assert exc_info.value.args == ("sbx-async-missing",)
 
 
 def test_provider_requires_api_key() -> None:
