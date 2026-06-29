@@ -2,6 +2,11 @@
 
 # Changelog
 
+## 0.0.5
+
+- Added `AsyncE2BSandbox` backed by `e2b.AsyncSandbox`.
+- Added async E2B provider lifecycle methods for `dcode` async flows.
+
 ## 0.0.4
 
 - Added a Deep Agents Code sandbox provider entry point so `dcode --sandbox e2b`
