@@ -14,7 +14,7 @@ from deepagents_code.integrations.sandbox_provider import (
     SandboxProviderMetadata,
 )
 
-from langchain_e2b.sandbox import DEFAULT_WORKDIR, E2BSandbox
+from langchain_e2b.sandbox import DEFAULT_WORKDIR, AsyncE2BSandbox, E2BSandbox
 
 DEFAULT_SANDBOX_TIMEOUT = 30 * 60
 DEFAULT_COMMAND_TIMEOUT = 30 * 60
@@ -190,6 +190,99 @@ class E2BProvider(SandboxProvider):
             _raise_unsupported_kwargs(kwargs)
         try:
             e2b.Sandbox.kill(sandbox_id, api_key=self._resolve_api_key())
+        except e2b.SandboxNotFoundException as exc:
+            raise SandboxNotFoundError(sandbox_id) from exc
+
+    async def aget_or_create(
+        self,
+        *,
+        sandbox_id: str | None = None,
+        timeout: int | str | None = None,  # noqa: ASYNC109
+        template: str | None = None,
+        workdir: str = DEFAULT_WORKDIR,
+        command_timeout: int | str | None = None,
+        **kwargs: object,
+    ) -> AsyncE2BSandbox:
+        """Get or create an async E2B sandbox backend.
+
+        Args:
+            sandbox_id: Existing E2B sandbox ID, or `None` to create one.
+            timeout: E2B sandbox lifetime in seconds.
+            template: E2B template for new sandboxes.
+            workdir: Working directory used by command execution.
+            command_timeout: Default command timeout for the backend.
+            **kwargs: Unsupported provider options.
+
+        Returns:
+            Async E2B sandbox backend.
+
+        Raises:
+            SandboxNotFoundError: If `sandbox_id` does not exist.
+            TypeError: If unsupported provider options are passed.
+            ValueError: If credentials or timeout settings are invalid.
+        """
+        if kwargs:
+            _raise_unsupported_kwargs(kwargs)
+
+        api_key = self._resolve_api_key()
+        sandbox_timeout = self._resolve_sandbox_timeout(timeout)
+        default_command_timeout = _resolve_int(
+            command_timeout,
+            name="command_timeout",
+            default=DEFAULT_COMMAND_TIMEOUT,
+            allow_zero=True,
+        )
+
+        try:
+            if sandbox_id is not None:
+                sandbox = await e2b.AsyncSandbox.connect(
+                    sandbox_id,
+                    timeout=sandbox_timeout,
+                    api_key=api_key,
+                )
+            else:
+                resolved_template = template or _resolve_optional_env_var(
+                    self._resolve_env_var,
+                    "E2B_TEMPLATE",
+                )
+                if resolved_template:
+                    sandbox = await e2b.AsyncSandbox.create(
+                        template=resolved_template,
+                        timeout=sandbox_timeout,
+                        api_key=api_key,
+                    )
+                else:
+                    sandbox = await e2b.AsyncSandbox.create(
+                        timeout=sandbox_timeout,
+                        api_key=api_key,
+                    )
+        except e2b.SandboxNotFoundException as exc:
+            if sandbox_id is None:
+                raise
+            raise SandboxNotFoundError(sandbox_id) from exc
+
+        return AsyncE2BSandbox(
+            sandbox=sandbox,
+            workdir=workdir,
+            timeout=default_command_timeout,
+        )
+
+    async def adelete(self, *, sandbox_id: str, **kwargs: object) -> None:
+        """Kill an E2B sandbox asynchronously.
+
+        Args:
+            sandbox_id: E2B sandbox ID.
+            **kwargs: Unsupported provider options.
+
+        Raises:
+            SandboxNotFoundError: If `sandbox_id` does not exist.
+            TypeError: If unsupported provider options are passed.
+            ValueError: If credentials are missing.
+        """
+        if kwargs:
+            _raise_unsupported_kwargs(kwargs)
+        try:
+            await e2b.AsyncSandbox.kill(sandbox_id, api_key=self._resolve_api_key())
         except e2b.SandboxNotFoundException as exc:
             raise SandboxNotFoundError(sandbox_id) from exc
 

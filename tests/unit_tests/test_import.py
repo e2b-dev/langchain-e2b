@@ -7,7 +7,8 @@ def test_import_e2b() -> None:
     assert langchain_e2b is not None
 
 
-def test_public_exports_only_sandbox() -> None:
-    assert langchain_e2b.__all__ == ["E2BSandbox"]
+def test_public_exports_sandboxes() -> None:
+    assert langchain_e2b.__all__ == ["AsyncE2BSandbox", "E2BSandbox"]
+    assert hasattr(langchain_e2b, "AsyncE2BSandbox")
     assert hasattr(langchain_e2b, "E2BSandbox")
     assert not hasattr(langchain_e2b, "E2BProvider")

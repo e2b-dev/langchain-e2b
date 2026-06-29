@@ -26,6 +26,22 @@ finally:
     e2b_sandbox.kill()
 ```
 
+For async agents, use E2B's async SDK with the async backend:
+
+```python
+from e2b import AsyncSandbox
+from langchain_e2b import AsyncE2BSandbox
+
+e2b_sandbox = await AsyncSandbox.create()
+backend = AsyncE2BSandbox(sandbox=e2b_sandbox)
+
+try:
+    result = await backend.aexecute("echo hello")
+    print(result.output)
+finally:
+    await e2b_sandbox.kill()
+```
+
 ## Deep Agents Code
 
 Install `langchain-e2b` into the `dcode` environment, then run with the E2B
