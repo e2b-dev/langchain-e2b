@@ -23,7 +23,7 @@ version = "0.0.5"
 requires-python = ">=3.11,<4.0"
 dependencies = [
     "deepagents>=0.6.0,<0.7.0",
-    "e2b>=2.25.1,<3.0.0",
+    "e2b>=2.32.0,<3.0.0",
 ]
 
 [project.entry-points."deepagents_code.sandbox_providers"]
