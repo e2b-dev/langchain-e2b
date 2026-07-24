@@ -2,6 +2,12 @@
 
 # Changelog
 
+## 0.0.6
+
+- Tagged E2B SDK traffic with `langchain-e2b/<package-version>` for integration
+  attribution.
+- Raised the minimum `e2b` SDK to `2.32.0`.
+
 ## 0.0.5
 
 - Added `AsyncE2BSandbox` backed by `e2b.AsyncSandbox`.
