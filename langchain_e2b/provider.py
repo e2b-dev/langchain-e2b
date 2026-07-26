@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
-from typing import NoReturn
+from typing import NoReturn, NotRequired, TypedDict
 
 import e2b
 from deepagents_code.integrations.sandbox_provider import (
@@ -20,6 +20,11 @@ DEFAULT_SANDBOX_TIMEOUT = 30 * 60
 DEFAULT_COMMAND_TIMEOUT = 30 * 60
 
 EnvResolver = Callable[[str], str | None]
+
+
+class _ApiOptions(TypedDict):
+    api_key: str
+    api_url: NotRequired[str]
 
 
 def _default_resolve_env_var(name: str) -> str | None:
@@ -131,7 +136,7 @@ class E2BProvider(SandboxProvider):
         if kwargs:
             _raise_unsupported_kwargs(kwargs)
 
-        api_key = self._resolve_api_key()
+        api_options = self._resolve_api_options()
         sandbox_timeout = self._resolve_sandbox_timeout(timeout)
         default_command_timeout = _resolve_int(
             command_timeout,
@@ -145,7 +150,7 @@ class E2BProvider(SandboxProvider):
                 sandbox = e2b.Sandbox.connect(
                     sandbox_id,
                     timeout=sandbox_timeout,
-                    api_key=api_key,
+                    **api_options,
                 )
             else:
                 resolved_template = template or _resolve_optional_env_var(
@@ -156,12 +161,12 @@ class E2BProvider(SandboxProvider):
                     sandbox = e2b.Sandbox.create(
                         template=resolved_template,
                         timeout=sandbox_timeout,
-                        api_key=api_key,
+                        **api_options,
                     )
                 else:
                     sandbox = e2b.Sandbox.create(
                         timeout=sandbox_timeout,
-                        api_key=api_key,
+                        **api_options,
                     )
         except e2b.SandboxNotFoundException as exc:
             if sandbox_id is None:
@@ -189,7 +194,7 @@ class E2BProvider(SandboxProvider):
         if kwargs:
             _raise_unsupported_kwargs(kwargs)
         try:
-            e2b.Sandbox.kill(sandbox_id, api_key=self._resolve_api_key())
+            e2b.Sandbox.kill(sandbox_id, **self._resolve_api_options())
         except e2b.SandboxNotFoundException as exc:
             raise SandboxNotFoundError(sandbox_id) from exc
 
@@ -224,7 +229,7 @@ class E2BProvider(SandboxProvider):
         if kwargs:
             _raise_unsupported_kwargs(kwargs)
 
-        api_key = self._resolve_api_key()
+        api_options = self._resolve_api_options()
         sandbox_timeout = self._resolve_sandbox_timeout(timeout)
         default_command_timeout = _resolve_int(
             command_timeout,
@@ -238,7 +243,7 @@ class E2BProvider(SandboxProvider):
                 sandbox = await e2b.AsyncSandbox.connect(
                     sandbox_id,
                     timeout=sandbox_timeout,
-                    api_key=api_key,
+                    **api_options,
                 )
             else:
                 resolved_template = template or _resolve_optional_env_var(
@@ -249,12 +254,12 @@ class E2BProvider(SandboxProvider):
                     sandbox = await e2b.AsyncSandbox.create(
                         template=resolved_template,
                         timeout=sandbox_timeout,
-                        api_key=api_key,
+                        **api_options,
                     )
                 else:
                     sandbox = await e2b.AsyncSandbox.create(
                         timeout=sandbox_timeout,
-                        api_key=api_key,
+                        **api_options,
                     )
         except e2b.SandboxNotFoundException as exc:
             if sandbox_id is None:
@@ -282,7 +287,7 @@ class E2BProvider(SandboxProvider):
         if kwargs:
             _raise_unsupported_kwargs(kwargs)
         try:
-            await e2b.AsyncSandbox.kill(sandbox_id, api_key=self._resolve_api_key())
+            await e2b.AsyncSandbox.kill(sandbox_id, **self._resolve_api_options())
         except e2b.SandboxNotFoundException as exc:
             raise SandboxNotFoundError(sandbox_id) from exc
 
@@ -294,6 +299,13 @@ class E2BProvider(SandboxProvider):
             )
             raise ValueError(msg)
         return api_key
+
+    def _resolve_api_options(self) -> _ApiOptions:
+        options: _ApiOptions = {"api_key": self._resolve_api_key()}
+        api_url = _resolve_optional_env_var(self._resolve_env_var, "E2B_API_URL")
+        if api_url:
+            options["api_url"] = api_url
+        return options
 
     def _resolve_sandbox_timeout(self, timeout: int | str | None) -> int:
         env_timeout = (

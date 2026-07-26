@@ -53,6 +53,16 @@ export E2B_API_KEY=...
 dcode --sandbox e2b
 ```
 
+For self-hosted or custom E2B deployments, set the API endpoint as well:
+
+```bash
+export E2B_API_URL=https://api.example.com
+```
+
+Deep Agents Code-prefixed settings are also supported. When set,
+`DEEPAGENTS_CODE_E2B_API_KEY` and `DEEPAGENTS_CODE_E2B_API_URL` take precedence
+over their unprefixed equivalents.
+
 ## What is this?
 
 `langchain-e2b` adapts an existing E2B sandbox to the Deep Agents sandbox
