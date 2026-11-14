@@ -2,6 +2,17 @@
 
 # Changelog
 
+## 0.0.7
+
+- Added support for `deepagents` 0.7 (the supported range is now
+  `>=0.6.0,<0.8.0`).
+- Fixed `AsyncE2BSandbox.aedit` raising `AttributeError` instead of returning an
+  edit error when `old_string` is not found on `deepagents>=0.6.11` (#9).
+- `AsyncE2BSandbox.aglob` now defers to the async-native Deep Agents
+  implementation on `deepagents>=0.6.11`, so on 0.7 it returns absolute paths
+  and handles truncated or partially unreadable searches instead of raising
+  `KeyError`.
+
 ## 0.0.6
 
 - Tagged E2B SDK traffic with `langchain-e2b/<package-version>` for integration
