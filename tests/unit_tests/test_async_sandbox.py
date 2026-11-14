@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, cast
 
 import e2b
 import pytest
+from deepagents.backends.sandbox import _GLOB_COMMAND_TEMPLATE
 
 from langchain_e2b import AsyncE2BSandbox
 
@@ -321,21 +323,61 @@ async def test_agrep_parses_matches() -> None:
     assert result.matches == [{"path": "src/app.py", "line": 12, "text": "needle here"}]
 
 
-async def test_aglob_parses_json_matches() -> None:
+GLOB_MATCH = '{"path": "src/app.py", "is_dir": false}\n'
+GLOB_WARNINGS = (
+    '{"warning": "walk_errors", "count": 1, "sample": ["/root"]}\n'
+    '{"warning": "truncated"}\n'
+)
+
+
+@pytest.mark.parametrize("path", [None, "/workspace/", "workspace"])
+@pytest.mark.parametrize(
+    "stdout", [GLOB_MATCH, GLOB_MATCH + GLOB_WARNINGS], ids=["matches", "warnings"]
+)
+def test_aglob_matches_sync_glob(path: str | None, stdout: str) -> None:
+    # Sync glob is upstream's BaseSandbox.glob, so this pins aglob to the
+    # installed deepagents contract (absolute paths and warnings on 0.7).
+    if stdout != GLOB_MATCH and "'warning'" not in _GLOB_COMMAND_TEMPLATE:
+        pytest.skip("this deepagents glob script never emits warning records")
     backend = _backend(
         commands=FakeAsyncCommands(
-            result=FakeCommandResult(
-                stdout='{"path": "src/app.py", "is_dir": false}\n',
-                stderr="",
-                exit_code=0,
-            )
+            result=FakeCommandResult(stdout=stdout, stderr="", exit_code=0)
         )
     )
 
-    result = await backend.aglob("**/*.py", path="/workspace")
+    expected = backend.glob("**/*.py", path=path)
 
-    assert result.error is None
-    assert result.matches == [{"path": "src/app.py", "is_dir": False}]
+    assert expected.error is None
+    assert expected.matches
+    assert asyncio.run(backend.aglob("**/*.py", path=path)) == expected
+
+
+@pytest.mark.parametrize(
+    ("old_string", "uploads"),
+    [("missing", False), ("x" * 60_000, True)],
+    ids=["inline", "upload"],
+)
+async def test_aedit_missing_old_string_returns_edit_error(
+    old_string: str,
+    uploads: bool,  # noqa: FBT001
+) -> None:
+    files = FakeAsyncFiles()
+    backend = _backend(
+        commands=FakeAsyncCommands(
+            result=FakeCommandResult(
+                stdout='{"error": "string_not_found"}\n',
+                stderr="",
+                exit_code=0,
+            )
+        ),
+        files=files,
+    )
+
+    result = await backend.aedit(TEST_FILE_PATH, old_string, "new")
+
+    assert result.path is None
+    assert result.error == f"Error: String not found in file: '{old_string}'"
+    assert bool(files.entries) is uploads
 
 
 async def test_sync_methods_reject_running_loop() -> None:

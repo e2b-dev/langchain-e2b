@@ -37,6 +37,13 @@ from deepagents.backends.sandbox import (
 )
 from deepagents.backends.utils import _get_file_type
 
+try:
+    from deepagents.backends.sandbox import (
+        _map_edit_error,  # ty: ignore[unresolved-import]
+    )
+except ImportError:  # deepagents<0.6.11 kept it as a BaseSandbox staticmethod
+    _map_edit_error = BaseSandbox._map_edit_error  # noqa: SLF001
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
@@ -595,7 +602,7 @@ except PermissionError:
             return EditResult(error=error)
 
         if "error" in data:
-            return self._map_edit_error(data["error"], file_path, old_string)
+            return _map_edit_error(data["error"], file_path, old_string)
 
         return EditResult(
             path=file_path,
@@ -666,7 +673,7 @@ except PermissionError:
             return EditResult(error=error)
 
         if "error" in data:
-            return self._map_edit_error(data["error"], file_path, old_string)
+            return _map_edit_error(data["error"], file_path, old_string)
 
         return EditResult(
             path=file_path,
@@ -755,6 +762,12 @@ except PermissionError:
 
     async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
         """Structured async glob matching returning `GlobResult`."""
+        # deepagents>=0.6.11 ships an async-native BaseSandbox.aglob built on
+        # aexecute. Defer to it so results follow upstream's contract (0.7:
+        # absolute paths, normalized roots, truncation warnings).
+        if "aglob" in BaseSandbox.__dict__:
+            return await super().aglob(pattern, path)
+
         search_path = path or "/"
         pattern_b64 = base64.b64encode(pattern.encode("utf-8")).decode("ascii")
         path_b64 = base64.b64encode(search_path.encode("utf-8")).decode("ascii")
