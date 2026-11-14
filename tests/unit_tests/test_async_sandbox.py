@@ -348,6 +348,7 @@ def test_aglob_matches_sync_glob(path: str | None, stdout: str) -> None:
     expected = backend.glob("**/*.py", path=path)
 
     assert expected.error is None
+    assert expected.matches
     assert asyncio.run(backend.aglob("**/*.py", path=path)) == expected
 
 
