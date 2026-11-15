@@ -262,6 +262,53 @@ def test_provider_reads_template_and_timeout_from_environment() -> None:
     )
 
 
+def test_provider_passes_api_url_from_environment() -> None:
+    sandbox = _sandbox("sbx-custom-api")
+    resolve_env_var = _resolver(
+        {
+            "E2B_API_KEY": "fake-key",
+            "E2B_API_URL": "https://api.example.com",
+        }
+    )
+
+    with patch(
+        "langchain_e2b.provider.e2b.Sandbox.create",
+        return_value=sandbox,
+    ) as create:
+        provider = E2BProvider(resolve_env_var=resolve_env_var)
+        provider.get_or_create()
+
+    create.assert_called_once_with(
+        timeout=DEFAULT_SANDBOX_TIMEOUT,
+        api_key="fake-key",
+        api_url="https://api.example.com",
+    )
+
+
+def test_provider_prefers_deepagents_code_api_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("E2B_API_KEY", "fake-key")
+    monkeypatch.setenv("E2B_API_URL", "https://canonical.example.com")
+    monkeypatch.setenv(
+        "DEEPAGENTS_CODE_E2B_API_URL",
+        "https://prefixed.example.com",
+    )
+    sandbox = _sandbox("sbx-prefixed-api")
+
+    with patch(
+        "langchain_e2b.provider.e2b.Sandbox.create",
+        return_value=sandbox,
+    ) as create:
+        E2BProvider().get_or_create()
+
+    create.assert_called_once_with(
+        timeout=DEFAULT_SANDBOX_TIMEOUT,
+        api_key="fake-key",
+        api_url="https://prefixed.example.com",
+    )
+
+
 def test_provider_prefers_deepagents_code_template_and_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
